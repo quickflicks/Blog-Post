@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Photography Blog</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+            color: #333;
+            background: #f9f9f9;
+        }
+        header {
+            background: linear-gradient(to right, #2c3e50, #3498db);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .blog-post {
+            background: white;
+            margin-bottom: 40px;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .author {
+            color: #666;
+            cursor: default;
+            user-select: none;
+        }
+        #vaultOverlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 1000;
+        }
+        #vault {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            max-width: 600px;
+            margin: 50px auto;
+            text-align: center;
+            position: relative;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .media-item {
+            margin: 15px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        input {
+            padding: 12px;
+            margin: 8px;
+            width: 80%;
+            max-width: 300px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        img, video {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+        }
+        #vaultContent {
+            display: none;
+        }
+        .close-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .upload-progress {
+            width: 100%;
+            height: 4px;
+            background: #eee;
+            margin: 10px 0;
+            border-radius: 2px;
+        }
+        .progress-bar {
+            width: 0%;
+            height: 100%;
+            background: #3498db;
+            border-radius: 2px;
+            transition: width 0.3s;
+        }
+        .error {
+            color: #e74c3c;
+            margin: 10px 0;
+        }
+        .success {
+            color: #2ecc71;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Digital Photography Blog</h1>
+    </header>
+
+    <div class="container">
+        <div class="blog-post">
+            <h2>Understanding Light in Photography</h2>
+            <p class="author">By <span id="secretTrigger">David Chen</span></p>
+            <p>Light is the essence of photography. Understanding how to work with natural and artificial light can transform your images from ordinary to extraordinary...</p>
+        </div>
+
+        <div class="blog-post">
+            <h2>Essential Camera Gear for 2024</h2>
+            <p class="author">By Sarah Williams</p>
+            <p>With technology advancing rapidly, here's our guide to the most essential photography gear for both beginners and professionals...</p>
+        </div>
+    </div>
+
+    <div id="vaultOverlay">
+        <div id="vault">
+            <button class="close-button" onclick="closeVault()">×</button>
+            <div id="vaultLogin">
+                <h2>Secure Access Required</h2>
+                <input type="password" id="vaultPassword" placeholder="Enter password" autocomplete="off">
+                <button onclick="checkPassword()">Login</button>
+                <div id="loginError" class="error"></div>
+            </div>
+            
+            <div id="vaultContent">
+                <h2>Private Gallery</h2>
+                <button onclick="toggleUpload()">Add New Media</button>
+                <div id="uploadSection" style="display: none;">
+                    <input type="file" id="mediaFile" accept="image/*,video/*" multiple>
+                    <div class="upload-progress">
+                        <div class="progress-bar"></div>
+                    </div>
+                    <button onclick="addMedia()">Upload</button>
+                    <div id="uploadStatus"></div>
+                </div>
+                <div id="mediaList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.0.0/crypto-js.min.js"></script>
+    <script>
+        const VAULT_PASSWORD = 'KUPALKABABOSS?'; // Change this!
+        let clickCount = 0;
+        let lastClick = 0;
+        let mediaItems = [];
+
+        document.getElementById('secretTrigger').addEventListener('click', function() {
+            const now = new Date().getTime();
+            if (now - lastClick > 2000) {
+                clickCount = 1;
+            } else {
+                clickCount++;
+            }
+            lastClick = now;
+
+            if (clickCount === 8) {
+                document.getElementById('vaultOverlay').style.display = 'block';
+                clickCount = 0;
+            }
+        });
+
+        function closeVault() {
+            document.getElementById('vaultOverlay').style.display = 'none';
+            document.getElementById('vaultContent').style.display = 'none';
+            document.getElementById('vaultLogin').style.display = 'block';
+            document.getElementById('vaultPassword').value = '';
+            document.getElementById('loginError').textContent = '';
+        }
+
+        function checkPassword() {
+            const password = document.getElementById('vaultPassword').value;
+            if (password === VAULT_PASSWORD) {
+                document.getElementById('vaultLogin').style.display = 'none';
+                document.getElementById('vaultContent').style.display = 'block';
+                loadMedia();
+            } else {
+                document.getElementById('loginError').textContent = 'Invalid password';
+            }
+        }
+
+        function toggleUpload() {
+            const uploadSection = document.getElementById('uploadSection');
+            uploadSection.style.display = uploadSection.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function updateProgress(percent) {
+            document.querySelector('.progress-bar').style.width = percent + '%';
+        }
+
+        function addMedia() {
+            const files = document.getElementById('mediaFile').files;
+            if (files.length === 0) {
+                document.getElementById('uploadStatus').innerHTML = '<span class="error">Please select files to upload</span>';
+                return;
+            }
+
+            let processed = 0;
+            Array.from(files).forEach((file, index) => {
+                if (file.size > 10 * 1024 * 1024) {
+                    document.getElementById('uploadStatus').innerHTML = '<span class="error">File size must be less than 10MB</span>';
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const encrypted = CryptoJS.AES.encrypt(e.target.result, VAULT_PASSWORD).toString();
+                        mediaItems.push({
+                            type: file.type,
+                            data: encrypted,
+                            name: file.name,
+                            timestamp: new Date().getTime()
+                        });
+                        
+                        processed++;
+                        updateProgress((processed / files.length) * 100);
+                        
+                        if (processed === files.length) {
+                            localStorage.setItem('vaultMedia', JSON.stringify(mediaItems));
+                            document.getElementById('uploadStatus').innerHTML = '<span class="success">Upload complete!</span>';
+                            loadMedia();
+                            setTimeout(() => {
+                                updateProgress(0);
+                                document.getElementById('uploadStatus').textContent = '';
+                            }, 2000);
+                        }
+                    } catch (error) {
+                        document.getElementById('uploadStatus').innerHTML = '<span class="error">Error processing file: ' + error.message + '</span>';
+                    }
+                };
+                reader.onerror = function() {
+                    document.getElementById('uploadStatus').innerHTML = '<span class="error">Error reading file</span>';
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function loadMedia() {
+            try {
+                const stored = localStorage.getItem('vaultMedia');
+                if (stored) {
+                    mediaItems = JSON.parse(stored);
+                    displayMedia();
+                }
+            } catch (error) {
+                console.error('Error loading media:', error);
+            }
+        }
+
+        function displayMedia() {
+            const mediaList = document.getElementById('mediaList');
+            mediaList.innerHTML = '';
+
+            mediaItems.sort((a, b) => b.timestamp - a.timestamp).forEach((item, index) => {
+                try {
+                    const decrypted = CryptoJS.AES.decrypt(item.data, VAULT_PASSWORD).toString(CryptoJS.enc.Utf8);
+                    const div = document.createElement('div');
+                    div.className = 'media-item';
+
+                    if (item.type.startsWith('image')) {
+                        const img = document.createElement('img');
+                        img.src = decrypted;
+                        img.loading = 'lazy';
+                        div.appendChild(img);
+                    } else if (item.type.startsWith('video')) {
+                        const video = document.createElement('video');
+                        video.src = decrypted;
+                        video.controls = true;
+                        video.loading = 'lazy';
+                        div.appendChild(video);
+                    }
+
+                    const deleteButton = document.createElement('button');
+                    deleteButton.textContent = 'Delete';
+                    deleteButton.onclick = () => {
+                        if (confirm('Are you sure you want to delete this item?')) {
+                            deleteMedia(index);
+                        }
+                    };
+                    div.appendChild(deleteButton);
+
+                    mediaList.appendChild(div);
+                } catch (error) {
+                    console.error('Error displaying media item:', error);
+                }
+            });
+        }
+
+        function deleteMedia(index) {
+            mediaItems.splice(index, 1);
+            localStorage.setItem('vaultMedia', JSON.stringify(mediaItems));
+            loadMedia();
+        }
+
+        // Event listener for Enter key in password field
+        document.getElementById('vaultPassword').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                checkPassword();
+            }
+        });
+
+        // Clear vault data if too many wrong attempts
+        let failedAttempts = 0;
+        const maxAttempts = 5;
+
+        function checkPassword() {
+            const password = document.getElementById('vaultPassword').value;
+            if (password === VAULT_PASSWORD) {
+                failedAttempts = 0;
+                document.getElementById('vaultLogin').style.display = 'none';
+                document.getElementById('vaultContent').style.display = 'block';
+                loadMedia();
+            } else {
+                failedAttempts++;
+                if (failedAttempts >= maxAttempts) {
+                    localStorage.removeItem('vaultMedia');
+                    mediaItems = [];
+                    failedAttempts = 0;
+                    document.getElementById('loginError').textContent = 'Too many attempts. Vault has been cleared.';
+                } else {
+                    document.getElementById('loginError').textContent = `Invalid password. ${maxAttempts - failedAttempts} attempts remaining.`;
+                }
+            }
+        }
+    </script>
+</body>
+</html>
