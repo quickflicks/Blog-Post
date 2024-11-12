@@ -126,43 +126,6 @@
             color: #2ecc71;
             margin: 10px 0;
         }
-        .preview-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin: 10px 0;
-            justify-content: center;
-        }
-        .preview-item {
-            width: 150px;
-            height: 150px;
-            object-fit: cover;
-            border-radius: 4px;
-            border: 2px solid #3498db;
-        }
-        #uploadButton {
-            display: none;
-            margin: 10px auto;
-        }
-        .upload-label {
-            background: #3498db;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            display: inline-block;
-            margin: 5px;
-            transition: background 0.3s;
-        }
-        .upload-label:hover {
-            background: #2980b9;
-        }
-        #mediaList {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 20px;
-            padding: 20px;
-        }
     </style>
 </head>
 <body>
@@ -190,20 +153,19 @@
             <div id="vaultLogin">
                 <h2>Secure Access Required</h2>
                 <input type="password" id="vaultPassword" placeholder="Enter password" autocomplete="off">
-                <button onclick="checkPassword()">Access Vault</button>
+                <button onclick="checkPassword()">Login</button>
                 <div id="loginError" class="error"></div>
             </div>
             
             <div id="vaultContent">
                 <h2>Private Gallery</h2>
-                <div id="uploadSection">
-                    <label class="upload-label" for="mediaFile">Choose Files</label>
-                    <input type="file" id="mediaFile" accept="image/*,video/*" multiple style="display: none;">
-                    <div id="previewContainer" class="preview-container"></div>
+                <button onclick="toggleUpload()">Add New Media</button>
+                <div id="uploadSection" style="display: none;">
+                    <input type="file" id="mediaFile" accept="image/*,video/*" multiple>
                     <div class="upload-progress">
                         <div class="progress-bar"></div>
                     </div>
-                    <button id="uploadButton" onclick="addMedia()">Upload Files</button>
+                    <button onclick="addMedia()">Upload</button>
                     <div id="uploadStatus"></div>
                 </div>
                 <div id="mediaList"></div>
@@ -213,207 +175,189 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.0.0/crypto-js.min.js"></script>
     <script>
-    const VAULT_PASSWORD = '1234';
-    let clickCount = 0;
-    let lastClick = 0;
-    let mediaItems = [];
-    let selectedFiles = [];
+        const VAULT_PASSWORD = '1560'; // Change this!
+        let clickCount = 0;
+        let lastClick = 0;
+        let mediaItems = [];
 
-    document.getElementById('mediaFile').addEventListener('change', handleFileSelect);
-
-    function handleFileSelect(event) {
-        const files = event.target.files;
-        selectedFiles = Array.from(files);
-        const previewContainer = document.getElementById('previewContainer');
-        previewContainer.innerHTML = '';
-        
-        selectedFiles.forEach(file => {
-            if (file.type.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const img = document.createElement('img');
-                    img.src = e.target.result;
-                    img.className = 'preview-item';
-                    previewContainer.appendChild(img);
-                };
-                reader.readAsDataURL(file);
-            } else if (file.type.startsWith('video/')) {
-                const video = document.createElement('video');
-                video.className = 'preview-item';
-                video.controls = true;
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    video.src = e.target.result;
-                };
-                reader.readAsDataURL(file);
-                previewContainer.appendChild(video);
-            }
-        });
-
-        document.getElementById('uploadButton').style.display = selectedFiles.length > 0 ? 'block' : 'none';
-    }
-
-    document.getElementById('secretTrigger').addEventListener('click', function() {
-        const now = new Date().getTime();
-        if (now - lastClick > 2000) {
-            clickCount = 1;
-        } else {
-            clickCount++;
-        }
-        lastClick = now;
-
-        if (clickCount === 8) {
-            document.getElementById('vaultOverlay').style.display = 'block';
-            clickCount = 0;
-        }
-    });
-
-    function closeVault() {
-        document.getElementById('vaultOverlay').style.display = 'none';
-        document.getElementById('vaultContent').style.display = 'none';
-        document.getElementById('vaultLogin').style.display = 'block';
-        document.getElementById('vaultPassword').value = '';
-        document.getElementById('loginError').textContent = '';
-        document.getElementById('previewContainer').innerHTML = '';
-        document.getElementById('uploadButton').style.display = 'none';
-        selectedFiles = [];
-    }
-
-    let failedAttempts = 0;
-    const maxAttempts = 5;
-
-    function checkPassword() {
-        const password = document.getElementById('vaultPassword').value;
-        if (password === VAULT_PASSWORD) {
-            failedAttempts = 0;
-            document.getElementById('vaultLogin').style.display = 'none';
-            document.getElementById('vaultContent').style.display = 'block';
-            loadMedia();
-        } else {
-            failedAttempts++;
-            if (failedAttempts >= maxAttempts) {
-                localStorage.removeItem('vaultMedia');
-                mediaItems = [];
-                failedAttempts = 0;
-                document.getElementById('loginError').textContent = 'Too many attempts. Vault has been cleared.';
+        document.getElementById('secretTrigger').addEventListener('click', function() {
+            const now = new Date().getTime();
+            if (now - lastClick > 2000) {
+                clickCount = 1;
             } else {
-                document.getElementById('loginError').textContent = `Invalid password. ${maxAttempts - failedAttempts} attempts remaining.`;
+                clickCount++;
             }
-        }
-    }
+            lastClick = now;
 
-    function updateProgress(percent) {
-        document.querySelector('.progress-bar').style.width = percent + '%';
-    }
-
-    function addMedia() {
-        if (selectedFiles.length === 0) {
-            document.getElementById('uploadStatus').innerHTML = '<span class="error">Please select files to upload</span>';
-            return;
-        }
-
-        let processed = 0;
-        selectedFiles.forEach((file, index) => {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const base64Data = e.target.result;
-                    mediaItems.push({
-                        type: file.type,
-                        data: base64Data,
-                        name: file.name,
-                        timestamp: new Date().getTime()
-                    });
-                    
-                    processed++;
-                    updateProgress((processed / selectedFiles.length) * 100);
-                    
-                    if (processed === selectedFiles.length) {
-                        localStorage.setItem('vaultMedia', JSON.stringify(mediaItems));
-                        document.getElementById('uploadStatus').innerHTML = '<span class="success">Upload complete!</span>';
-                        document.getElementById('previewContainer').innerHTML = '';
-                        document.getElementById('uploadButton').style.display = 'none';
-                        document.getElementById('mediaFile').value = '';
-                        selectedFiles = [];
-                        loadMedia();
-                        setTimeout(() => {
-                            updateProgress(0);
-                            document.getElementById('uploadStatus').textContent = '';
-                        }, 2000);
-                    }
-                } catch (error) {
-                    console.error('Error processing file:', error);
-                    document.getElementById('uploadStatus').innerHTML = '<span class="error">Error processing file: ' + error.message + '</span>';
-                }
-            };
-            reader.onerror = function() {
-                document.getElementById('uploadStatus').innerHTML = '<span class="error">Error reading file</span>';
-            };
-            reader.readAsDataURL(file);
+            if (clickCount === 8) {
+                document.getElementById('vaultOverlay').style.display = 'block';
+                clickCount = 0;
+            }
         });
-    }
 
-    function loadMedia() {
-        try {
-            const stored = localStorage.getItem('vaultMedia');
-            if (stored) {
-                mediaItems = JSON.parse(stored);
-                displayMedia();
-            }
-        } catch (error) {
-            console.error('Error loading media:', error);
+        function closeVault() {
+            document.getElementById('vaultOverlay').style.display = 'none';
+            document.getElementById('vaultContent').style.display = 'none';
+            document.getElementById('vaultLogin').style.display = 'block';
+            document.getElementById('vaultPassword').value = '';
+            document.getElementById('loginError').textContent = '';
         }
-    }
 
-    function displayMedia() {
-        const mediaList = document.getElementById('mediaList');
-        mediaList.innerHTML = '';
+        function checkPassword() {
+            const password = document.getElementById('vaultPassword').value;
+            if (password === VAULT_PASSWORD) {
+                document.getElementById('vaultLogin').style.display = 'none';
+                document.getElementById('vaultContent').style.display = 'block';
+                loadMedia();
+            } else {
+                document.getElementById('loginError').textContent = 'Invalid password';
+            }
+        }
 
-        mediaItems.sort((a, b) => b.timestamp - a.timestamp).forEach((item, index) => {
-            try {
-                const div = document.createElement('div');
-                div.className = 'media-item';
+        function toggleUpload() {
+            const uploadSection = document.getElementById('uploadSection');
+            uploadSection.style.display = uploadSection.style.display === 'none' ? 'block' : 'none';
+        }
 
-                if (item.type.startsWith('image')) {
-                    const img = document.createElement('img');
-                    img.src = item.data;
-                    img.loading = 'lazy';
-                    div.appendChild(img);
-                } else if (item.type.startsWith('video')) {
-                    const video = document.createElement('video');
-                    video.src = item.data;
-                    video.controls = true;
-                    video.loading = 'lazy';
-                    div.appendChild(video);
+        function updateProgress(percent) {
+            document.querySelector('.progress-bar').style.width = percent + '%';
+        }
+
+        function addMedia() {
+            const files = document.getElementById('mediaFile').files;
+            if (files.length === 0) {
+                document.getElementById('uploadStatus').innerHTML = '<span class="error">Please select files to upload</span>';
+                return;
+            }
+
+            let processed = 0;
+            Array.from(files).forEach((file, index) => {
+                if (file.size > 10 * 1024 * 1024) {
+                    document.getElementById('uploadStatus').innerHTML = '<span class="error">File size must be less than 10MB</span>';
+                    return;
                 }
 
-                const deleteButton = document.createElement('button');
-                deleteButton.textContent = 'Delete';
-                deleteButton.onclick = () => {
-                    if (confirm('Are you sure you want to delete this item?')) {
-                        deleteMedia(index);
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const encrypted = CryptoJS.AES.encrypt(e.target.result, VAULT_PASSWORD).toString();
+                        mediaItems.push({
+                            type: file.type,
+                            data: encrypted,
+                            name: file.name,
+                            timestamp: new Date().getTime()
+                        });
+                        
+                        processed++;
+                        updateProgress((processed / files.length) * 100);
+                        
+                        if (processed === files.length) {
+                            localStorage.setItem('vaultMedia', JSON.stringify(mediaItems));
+                            document.getElementById('uploadStatus').innerHTML = '<span class="success">Upload complete!</span>';
+                            loadMedia();
+                            setTimeout(() => {
+                                updateProgress(0);
+                                document.getElementById('uploadStatus').textContent = '';
+                            }, 2000);
+                        }
+                    } catch (error) {
+                        document.getElementById('uploadStatus').innerHTML = '<span class="error">Error processing file: ' + error.message + '</span>';
                     }
                 };
-                div.appendChild(deleteButton);
+                reader.onerror = function() {
+                    document.getElementById('uploadStatus').innerHTML = '<span class="error">Error reading file</span>';
+                };
+                reader.readAsDataURL(file);
+            });
+        }
 
-                mediaList.appendChild(div);
+        function loadMedia() {
+            try {
+                const stored = localStorage.getItem('vaultMedia');
+                if (stored) {
+                    mediaItems = JSON.parse(stored);
+                    displayMedia();
+                }
             } catch (error) {
-                console.error('Error displaying media item:', error);
+                console.error('Error loading media:', error);
+            }
+        }
+
+        function displayMedia() {
+            const mediaList = document.getElementById('mediaList');
+            mediaList.innerHTML = '';
+
+            mediaItems.sort((a, b) => b.timestamp - a.timestamp).forEach((item, index) => {
+                try {
+                    const decrypted = CryptoJS.AES.decrypt(item.data, VAULT_PASSWORD).toString(CryptoJS.enc.Utf8);
+                    const div = document.createElement('div');
+                    div.className = 'media-item';
+
+                    if (item.type.startsWith('image')) {
+                        const img = document.createElement('img');
+                        img.src = decrypted;
+                        img.loading = 'lazy';
+                        div.appendChild(img);
+                    } else if (item.type.startsWith('video')) {
+                        const video = document.createElement('video');
+                        video.src = decrypted;
+                        video.controls = true;
+                        video.loading = 'lazy';
+                        div.appendChild(video);
+                    }
+
+                    const deleteButton = document.createElement('button');
+                    deleteButton.textContent = 'Delete';
+                    deleteButton.onclick = () => {
+                        if (confirm('Are you sure you want to delete this item?')) {
+                            deleteMedia(index);
+                        }
+                    };
+                    div.appendChild(deleteButton);
+
+                    mediaList.appendChild(div);
+                } catch (error) {
+                    console.error('Error displaying media item:', error);
+                }
+            });
+        }
+
+        function deleteMedia(index) {
+            mediaItems.splice(index, 1);
+            localStorage.setItem('vaultMedia', JSON.stringify(mediaItems));
+            loadMedia();
+        }
+
+        // Event listener for Enter key in password field
+        document.getElementById('vaultPassword').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                checkPassword();
             }
         });
-    }
 
-    function deleteMedia(index) {
-        mediaItems.splice(index, 1);
-        localStorage.setItem('vaultMedia', JSON.stringify(mediaItems));
-        loadMedia();
-    }
+        // Clear vault data if too many wrong attempts
+        let failedAttempts = 0;
+        const maxAttempts = 5;
 
-    document.getElementById('vaultPassword').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            checkPassword();
+        function checkPassword() {
+            const password = document.getElementById('vaultPassword').value;
+            if (password === VAULT_PASSWORD) {
+                failedAttempts = 0;
+                document.getElementById('vaultLogin').style.display = 'none';
+                document.getElementById('vaultContent').style.display = 'block';
+                loadMedia();
+            } else {
+                failedAttempts++;
+                if (failedAttempts >= maxAttempts) {
+                    localStorage.removeItem('vaultMedia');
+                    mediaItems = [];
+                    failedAttempts = 0;
+                    document.getElementById('loginError').textContent = 'Too many attempts. Vault has been cleared.';
+                } else {
+                    document.getElementById('loginError').textContent = `Invalid password. ${maxAttempts - failedAttempts} attempts remaining.`;
+                }
+            }
         }
-    });
-</script>
+    </script>
 </body>
 </html>
